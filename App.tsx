@@ -75,7 +75,7 @@ interface Scene extends SceneInput {
 
 const App: React.FC = () => {
   const [script, setScript] = useState<string>('');
-  const [duration, setDuration] = useState<string>('');
+  const [numberOfPrompts, setNumberOfPrompts] = useState<string>('');
   const [characters, setCharacters] = useState<Character[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [artStyle, setArtStyle] = useState<string>('cinematic');
@@ -85,6 +85,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [exportFileName, setExportFileName] = useState<string>('veo3-prompts-by-huong');
 
   const [apiKeys, setApiKeys] = useState<string[]>([]);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
@@ -137,19 +138,19 @@ const App: React.FC = () => {
     setSelectedApiKey(key);
     localStorage.setItem('veo3-selected-api-key', key);
   };
-
+  
   const handleGenerate = useCallback(async () => {
     if (!selectedApiKey) {
         setError('Vui lòng thêm và chọn một khóa API trước khi tạo.');
         return;
     }
-    if (!script || !duration) {
-      setError('Vui lòng cung cấp cả kịch bản và thời lượng.');
+    if (!script || !numberOfPrompts) {
+      setError('Vui lòng cung cấp cả kịch bản và số lượng gợi ý.');
       return;
     }
-    const durationNum = parseInt(duration, 10);
-    if (isNaN(durationNum) || durationNum <= 0) {
-      setError('Vui lòng nhập một số dương hợp lệ cho thời lượng.');
+    const numPrompts = parseInt(numberOfPrompts, 10);
+    if (isNaN(numPrompts) || numPrompts <= 0) {
+      setError('Vui lòng nhập một số dương hợp lệ cho số lượng gợi ý.');
       return;
     }
 
@@ -163,7 +164,7 @@ const App: React.FC = () => {
 
       const generated = await generatePrompts(
         script, 
-        durationNum, 
+        numPrompts, 
         selectedApiKey,
         charactersToPass,
         scenesToPass,
@@ -178,7 +179,7 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [script, duration, selectedApiKey, characters, scenes, artStyle, topic, isConsistent]);
+  }, [script, numberOfPrompts, selectedApiKey, characters, scenes, artStyle, topic, isConsistent]);
 
     // Character handlers
     const addCharacter = () => setCharacters(prev => [...prev, { id: crypto.randomUUID(), name: '', description: '' }]);
@@ -208,13 +209,15 @@ const App: React.FC = () => {
 
   const handleExportTXT = () => {
     const content = prompts.map((p, i) => `${i + 1}. ${p}`).join('\n');
-    exportToFile(content, 'veo3-prompts-by-huong.txt', 'text/plain;charset=utf-8;');
+    const finalFileName = (exportFileName.trim() || 'veo3-prompts-by-huong') + '.txt';
+    exportToFile(content, finalFileName, 'text/plain;charset=utf-8;');
   };
 
   const handleExportCSV = () => {
     const header = '"Phân cảnh","Gợi ý"\n';
     const content = prompts.map((p, i) => `${i + 1},"${p.replace(/"/g, '""')}"`).join('\n');
-    exportToFile(header + content, 'veo3-prompts-by-huong.csv', 'text/csv;charset=utf-8;');
+    const finalFileName = (exportFileName.trim() || 'veo3-prompts-by-huong') + '.csv';
+    exportToFile(header + content, finalFileName, 'text/csv;charset=utf-8;');
   };
 
   const handleCopyPrompt = (text: string, index: number) => {
@@ -226,230 +229,204 @@ const App: React.FC = () => {
     });
   };
 
-  const isFormValid = script.trim() !== '' && duration.trim() !== '' && !isNaN(parseInt(duration, 10)) && parseInt(duration, 10) > 0 && selectedApiKey !== '';
+  const isFormValid = script.trim() !== '' && numberOfPrompts.trim() !== '' && !isNaN(parseInt(numberOfPrompts, 10)) && parseInt(numberOfPrompts, 10) > 0 && selectedApiKey !== '';
+
+  const renderOutput = () => {
+    if (isLoading) {
+        return <Loader />;
+    }
+    if (error) {
+        return (
+            <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg" role="alert">
+                <strong className="font-bold">Lỗi: </strong>
+                <span className="block sm:inline">{error}</span>
+            </div>
+        );
+    }
+    if (prompts.length > 0) {
+        return (
+            <div className="space-y-4">
+                <div className="flex flex-wrap justify-between items-center gap-4">
+                    <h2 className="text-2xl font-bold text-brand-secondary">Các Gợi Ý Đã Tạo</h2>
+                    <div className="flex items-center space-x-2">
+                        <button onClick={handleExportTXT} className="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors">Xuất .txt</button>
+                        <button onClick={handleExportCSV} className="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors">Xuất .csv</button>
+                    </div>
+                </div>
+                <div className="pt-2">
+                    <label htmlFor="fileName" className="block text-sm font-medium mb-1.5 text-dark-subtle">
+                        Tên tệp để xuất
+                    </label>
+                    <input
+                        id="fileName"
+                        type="text"
+                        value={exportFileName}
+                        onChange={(e) => setExportFileName(e.target.value)}
+                        placeholder="ví dụ: my-video-prompts"
+                        className="w-full p-2 bg-[#1e1e1e] border border-dark-border rounded-lg focus:ring-2 focus:ring-brand-primary transition duration-300"
+                        aria-label="Tên tệp để xuất"
+                    />
+                </div>
+                <ol className="list-decimal list-inside space-y-3 pt-2">
+                    {prompts.map((prompt, index) => (
+                        <li key={index} className="bg-[#1e1e1e] p-3 rounded-lg border border-dark-border flex justify-between items-center gap-3">
+                        <span className="text-dark-subtle flex-grow pr-2 text-sm">{prompt}</span>
+                        <button
+                            onClick={() => handleCopyPrompt(prompt, index)}
+                            className="group relative flex-shrink-0 p-2 rounded-md bg-gray-600 hover:bg-gray-500 transition-colors"
+                            aria-label={copiedIndex === index ? 'Đã sao chép' : 'Sao chép gợi ý'}
+                        >
+                            {copiedIndex === index ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            )}
+                            <span className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 origin-bottom scale-0 rounded-md bg-gray-800 px-2 py-1 text-xs font-medium text-white shadow-md transition-all duration-200 group-hover:scale-100">
+                                {copiedIndex === index ? 'Đã sao chép!' : 'Sao chép'}
+                            </span>
+                        </button>
+                        </li>
+                    ))}
+                </ol>
+            </div>
+        );
+    }
+    return (
+        <div className="text-center text-dark-subtle p-8">
+            <h3 className="text-xl font-semibold">Bảng điều khiển đầu ra</h3>
+            <p className="mt-2">Các gợi ý được tạo của bạn sẽ xuất hiện ở đây.</p>
+        </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-dark-bg text-dark-text font-sans flex flex-col items-center p-4 sm:p-6 lg:p-8">
       <Header />
-      <main className="w-full max-w-4xl mt-8 space-y-8">
-        <ApiKeyManager
-            apiKeys={apiKeys}
-            selectedApiKey={selectedApiKey}
-            onAddKey={handleAddApiKey}
-            onDeleteKey={handleDeleteApiKey}
-            onSelectKey={handleSelectApiKey}
-        />
-        <div className="bg-dark-card p-6 sm:p-8 rounded-2xl border border-dark-border shadow-2xl space-y-6">
-
-          {/* Characters Section */}
-          <div className="space-y-4">
-            <h3 className="text-xl font-semibold text-brand-primary">Nhân Vật (Không bắt buộc)</h3>
-            {characters.map((char, index) => (
-                <div key={char.id} className="bg-[#1e1e1e] p-4 rounded-lg border border-dark-border space-y-3 relative">
-                     <button onClick={() => deleteCharacter(char.id)} className="absolute -top-2 -right-2 p-1 bg-red-600 hover:bg-red-500 rounded-full text-white" aria-label="Xóa nhân vật">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                    </button>
-                    <input
-                        type="text"
-                        value={char.name}
-                        onChange={(e) => handleCharacterChange(char.id, 'name', e.target.value)}
-                        placeholder={`Tên Nhân Vật ${index + 1}`}
-                        className="w-full p-3 bg-dark-bg border border-dark-border rounded-md focus:ring-2 focus:ring-brand-primary"
-                    />
+      <main className="w-full max-w-7xl mt-6 grid grid-cols-1 lg:grid-cols-5 gap-8">
+        {/* Left Column: Inputs */}
+        <div className="lg:col-span-3 flex flex-col space-y-6">
+            <ApiKeyManager
+                apiKeys={apiKeys}
+                selectedApiKey={selectedApiKey}
+                onAddKey={handleAddApiKey}
+                onDeleteKey={handleDeleteApiKey}
+                onSelectKey={handleSelectApiKey}
+            />
+            <div className="bg-dark-card p-6 rounded-2xl border border-dark-border shadow-2xl space-y-4">
+                {/* Script and Number of Prompts */}
+                <div>
+                    <label htmlFor="script" className="block text-base font-semibold mb-1 text-brand-primary">
+                    Kịch Bản Của Bạn
+                    </label>
                     <textarea
-                        value={char.description}
-                        onChange={(e) => handleCharacterChange(char.id, 'description', e.target.value)}
-                        placeholder={`Mô tả cho Nhân Vật ${index + 1}...`}
-                        className="w-full h-20 p-3 bg-dark-bg border border-dark-border rounded-md focus:ring-2 focus:ring-brand-primary resize-y"
+                    id="script"
+                    value={script}
+                    onChange={(e) => setScript(e.target.value)}
+                    placeholder="Nhập kịch bản video của bạn tại đây..."
+                    className="w-full h-40 p-3 bg-[#1e1e1e] border border-dark-border rounded-lg focus:ring-2 focus:ring-brand-primary transition duration-300 resize-y"
+                    aria-label="Kịch Bản Của Bạn"
                     />
                 </div>
-            ))}
-            <button onClick={addCharacter} className="w-full flex justify-center items-center gap-2 py-2 px-4 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                 Thêm Nhân Vật
-            </button>
-          </div>
-
-          {/* Scenes Section */}
-          <div className="space-y-4">
-            <h3 className="text-xl font-semibold text-brand-primary">Bối Cảnh / Chi Tiết (Không bắt buộc)</h3>
-            {scenes.map((scene, index) => (
-                <div key={scene.id} className="bg-[#1e1e1e] p-4 rounded-lg border border-dark-border space-y-3 relative">
-                     <button onClick={() => deleteScene(scene.id)} className="absolute -top-2 -right-2 p-1 bg-red-600 hover:bg-red-500 rounded-full text-white" aria-label="Xóa bối cảnh">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                    </button>
+                <div>
+                    <label htmlFor="numberOfPrompts" className="block text-base font-semibold mb-1 text-brand-primary">
+                    Số Lượng Gợi Ý Mong Muốn
+                    </label>
                     <input
-                        type="text"
-                        value={scene.name}
-                        onChange={(e) => handleSceneChange(scene.id, 'name', e.target.value)}
-                        placeholder={`Tên Bối Cảnh ${index + 1}`}
-                        className="w-full p-3 bg-dark-bg border border-dark-border rounded-md focus:ring-2 focus:ring-brand-primary"
+                    id="numberOfPrompts"
+                    type="number"
+                    value={numberOfPrompts}
+                    onChange={(e) => setNumberOfPrompts(e.target.value)}
+                    placeholder="ví dụ: 15"
+                    className="w-full p-3 bg-[#1e1e1e] border border-dark-border rounded-lg focus:ring-2 focus:ring-brand-primary transition duration-300"
+                    min="1"
+                    aria-label="Số Lượng Gợi Ý Mong Muốn"
                     />
-                    <textarea
-                        value={scene.description}
-                        onChange={(e) => handleSceneChange(scene.id, 'description', e.target.value)}
-                        placeholder={`Mô tả cho Bối Cảnh ${index + 1}...`}
-                        className="w-full h-20 p-3 bg-dark-bg border border-dark-border rounded-md focus:ring-2 focus:ring-brand-primary resize-y"
-                    />
+                    <p className="text-xs text-dark-subtle mt-1.5 ml-1">Mỗi gợi ý tạo ra khoảng 5-8 giây video. Ví dụ: 15 gợi ý sẽ tạo ra video dài khoảng 75-120 giây.</p>
                 </div>
-            ))}
-             <button onClick={addScene} className="w-full flex justify-center items-center gap-2 py-2 px-4 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                Thêm Bối Cảnh
-            </button>
-          </div>
-          
-          <div className="pt-2">
-            <label className="flex items-center space-x-3 cursor-pointer">
-                <input
-                    type="checkbox"
-                    checked={isConsistent}
-                    onChange={(e) => setIsConsistent(e.target.checked)}
-                    className="form-checkbox h-5 w-5 text-brand-primary bg-dark-card border-dark-border rounded focus:ring-brand-primary focus:ring-offset-dark-card"
-                />
-                <span className="text-dark-text font-medium">Giữ nhân vật nhất quán (khuyến nghị)</span>
-            </label>
-            <p className="text-sm text-dark-subtle mt-1 ml-8">
-                Đảm bảo AI sử dụng cùng một hình ảnh cho tất cả các nhân vật được định nghĩa trong tất cả các cảnh quay.
-            </p>
-          </div>
-           <div>
-            <label htmlFor="artStyle" className="block text-lg font-semibold mb-2 text-brand-primary">
-              Phong Cách Nghệ Thuật
-            </label>
-            <div className="relative">
-                <select
-                    id="artStyle"
-                    value={artStyle}
-                    onChange={(e) => setArtStyle(e.target.value)}
-                    className="w-full p-4 bg-[#1e1e1e] border border-dark-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition duration-300 appearance-none"
-                    aria-label="Chọn Phong Cách Nghệ Thuật"
-                >
-                    {artStyles.map((style) => (
-                        <option key={style.value} value={style.value}>{style.label}</option>
-                    ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-dark-subtle">
-                    <svg className="fill-current h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                {/* Art Style and Topic */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="artStyle" className="block text-base font-semibold mb-1 text-brand-primary">
+                        Phong Cách Nghệ Thuật
+                        </label>
+                        <div className="relative">
+                            <select id="artStyle" value={artStyle} onChange={(e) => setArtStyle(e.target.value)} className="w-full p-3 bg-[#1e1e1e] border border-dark-border rounded-lg focus:ring-2 focus:ring-brand-primary appearance-none">
+                                {artStyles.map((style) => (<option key={style.value} value={style.value}>{style.label}</option>))}
+                            </select>
+                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-dark-subtle">
+                                <svg className="fill-current h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                     <div>
+                        <label htmlFor="topic" className="block text-base font-semibold mb-1 text-brand-primary">
+                        Chủ Đề Video
+                        </label>
+                        <div className="relative">
+                            <select id="topic" value={topic} onChange={(e) => setTopic(e.target.value)} className="w-full p-3 bg-[#1e1e1e] border border-dark-border rounded-lg focus:ring-2 focus:ring-brand-primary appearance-none">
+                                {videoTopics.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
+                            </select>
+                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-dark-subtle">
+                                <svg className="fill-current h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Characters and Scenes */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-3 p-3 bg-dark-bg rounded-lg border border-dark-border">
+                        <h3 className="text-base font-semibold text-brand-primary">Nhân Vật (Không bắt buộc)</h3>
+                        {characters.map((char, index) => (
+                            <div key={char.id} className="space-y-2 relative">
+                                <button onClick={() => deleteCharacter(char.id)} className="absolute -top-1 -right-1 p-0.5 bg-red-600 hover:bg-red-500 rounded-full text-white" aria-label="Xóa nhân vật"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg></button>
+                                <input type="text" value={char.name} onChange={(e) => handleCharacterChange(char.id, 'name', e.target.value)} placeholder={`Tên NV ${index + 1}`} className="w-full p-2 text-sm bg-[#1e1e1e] border border-dark-border rounded-md focus:ring-2 focus:ring-brand-primary" />
+                                <textarea value={char.description} onChange={(e) => handleCharacterChange(char.id, 'description', e.target.value)} placeholder={`Mô tả NV ${index + 1}...`} className="w-full h-20 p-2 text-sm bg-[#1e1e1e] border border-dark-border rounded-md focus:ring-2 focus:ring-brand-primary resize-y" />
+                            </div>
+                        ))}
+                        <button onClick={addCharacter} className="w-full flex justify-center items-center gap-2 py-1.5 px-3 text-sm bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>Thêm</button>
+                    </div>
+                    <div className="space-y-3 p-3 bg-dark-bg rounded-lg border border-dark-border">
+                        <h3 className="text-base font-semibold text-brand-primary">Bối Cảnh / Chi Tiết</h3>
+                         {scenes.map((scene, index) => (
+                            <div key={scene.id} className="space-y-2 relative">
+                                <button onClick={() => deleteScene(scene.id)} className="absolute -top-1 -right-1 p-0.5 bg-red-600 hover:bg-red-500 rounded-full text-white" aria-label="Xóa bối cảnh"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg></button>
+                                <input type="text" value={scene.name} onChange={(e) => handleSceneChange(scene.id, 'name', e.target.value)} placeholder={`Tên BC ${index + 1}`} className="w-full p-2 text-sm bg-[#1e1e1e] border border-dark-border rounded-md focus:ring-2 focus:ring-brand-primary" />
+                                <textarea value={scene.description} onChange={(e) => handleSceneChange(scene.id, 'description', e.target.value)} placeholder={`Mô tả BC ${index + 1}...`} className="w-full h-20 p-2 text-sm bg-[#1e1e1e] border border-dark-border rounded-md focus:ring-2 focus:ring-brand-primary resize-y" />
+                            </div>
+                        ))}
+                        <button onClick={addScene} className="w-full flex justify-center items-center gap-2 py-1.5 px-3 text-sm bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>Thêm</button>
+                    </div>
+                </div>
+
+                {/* Consistency and Generate button */}
+                <div className="pt-2">
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                        <input type="checkbox" checked={isConsistent} onChange={(e) => setIsConsistent(e.target.checked)} className="form-checkbox h-5 w-5 text-brand-primary bg-dark-card border-dark-border rounded focus:ring-brand-primary focus:ring-offset-dark-card" />
+                        <span className="text-dark-text font-medium">Giữ nhân vật nhất quán (khuyến nghị)</span>
+                    </label>
+                    <p className="text-xs text-dark-subtle mt-1 ml-8">Đảm bảo AI sử dụng cùng một hình ảnh cho các nhân vật.</p>
+                </div>
+                 <div className="pt-2">
+                    <button onClick={handleGenerate} disabled={isLoading || !isFormValid} className="w-full flex justify-center items-center py-3 px-6 bg-brand-primary text-white font-bold rounded-lg text-lg hover:bg-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-500/50 disabled:bg-gray-500 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 disabled:scale-100">
+                    {isLoading ? (
+                        <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Đang đạo diễn...</>
+                    ) : 'Tạo Gợi Ý'}
+                    </button>
                 </div>
             </div>
-          </div>
-           <div>
-            <label htmlFor="topic" className="block text-lg font-semibold mb-2 text-brand-primary">
-              Chủ Đề Video
-            </label>
-            <div className="relative">
-                <select
-                    id="topic"
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    className="w-full p-4 bg-[#1e1e1e] border border-dark-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition duration-300 appearance-none"
-                    aria-label="Chọn Chủ Đề Video"
-                >
-                    {videoTopics.map((t) => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-dark-subtle">
-                    <svg className="fill-current h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
-                </div>
-            </div>
-          </div>
-          <div>
-            <label htmlFor="script" className="block text-lg font-semibold mb-2 text-brand-primary">
-              Kịch Bản Của Bạn
-            </label>
-            <textarea
-              id="script"
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-              placeholder="Nhập kịch bản video của bạn tại đây. Mô tả các cảnh, đoạn hội thoại và hành động chính..."
-              className="w-full h-48 p-4 bg-[#1e1e1e] border border-dark-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition duration-300 resize-y"
-              aria-label="Kịch Bản Của Bạn"
-            />
-          </div>
-          <div>
-            <label htmlFor="duration" className="block text-lg font-semibold mb-2 text-brand-primary">
-              Tổng Thời Lượng Video (giây)
-            </label>
-            <input
-              id="duration"
-              type="number"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              placeholder="ví dụ: 60"
-              className="w-full p-4 bg-[#1e1e1e] border border-dark-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition duration-300"
-              min="1"
-              aria-label="Tổng Thời Lượng Video (giây)"
-            />
-          </div>
-          <div className="pt-2">
-            <button
-              onClick={handleGenerate}
-              disabled={isLoading || !isFormValid}
-              className="w-full flex justify-center items-center py-4 px-6 bg-brand-primary text-white font-bold rounded-lg text-lg hover:bg-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-500/50 disabled:bg-gray-500 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 disabled:scale-100"
-              aria-label="Nút Tạo Gợi Ý"
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Đang đạo diễn...
-                </>
-              ) : (
-                'Tạo Gợi Ý'
-              )}
-            </button>
-          </div>
         </div>
 
-        {error && (
-          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg" role="alert">
-            <strong className="font-bold">Lỗi: </strong>
-            <span className="block sm:inline">{error}</span>
-          </div>
-        )}
-
-        {isLoading && <Loader />}
-
-        {!isLoading && prompts.length > 0 && (
-          <div className="bg-dark-card p-6 sm:p-8 rounded-2xl border border-dark-border shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-brand-secondary">Các Gợi Ý Đã Tạo</h2>
-              <div className="space-x-2">
-                <button onClick={handleExportTXT} className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors">Xuất file .txt</button>
-                <button onClick={handleExportCSV} className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors">Xuất file .csv</button>
-              </div>
+        {/* Right Column: Outputs */}
+        <div className="lg:col-span-2">
+            <div className="lg:sticky lg:top-8 bg-dark-card p-6 rounded-2xl border border-dark-border shadow-2xl max-h-[calc(100vh-4rem)] overflow-y-auto">
+               {renderOutput()}
             </div>
-            <ol className="list-decimal list-inside space-y-4">
-              {prompts.map((prompt, index) => (
-                <li key={index} className="bg-[#1e1e1e] p-4 rounded-lg border border-dark-border flex justify-between items-center gap-4">
-                  <span className="text-dark-subtle flex-grow pr-2">{prompt}</span>
-                  <button
-                    onClick={() => handleCopyPrompt(prompt, index)}
-                    className="group relative flex-shrink-0 p-2 rounded-md bg-gray-600 hover:bg-gray-500 transition-colors"
-                    aria-label={copiedIndex === index ? 'Đã sao chép' : 'Sao chép gợi ý'}
-                  >
-                    {copiedIndex === index ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    )}
-                    <span className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 origin-bottom scale-0 rounded-md bg-gray-800 px-2 py-1 text-xs font-medium text-white shadow-md transition-all duration-200 group-hover:scale-100">
-                        {copiedIndex === index ? 'Đã sao chép!' : 'Sao chép'}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
+        </div>
       </main>
     </div>
   );

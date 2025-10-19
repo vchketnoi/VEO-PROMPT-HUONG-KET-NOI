@@ -28,7 +28,7 @@ const responseSchema = {
 
 export const generatePrompts = async (
   script: string, 
-  duration: number, 
+  numberOfPrompts: number, 
   apiKey: string,
   characters: CharacterInput[],
   scenes: SceneInput[],
@@ -47,17 +47,18 @@ export const generatePrompts = async (
     
     RULES:
     1. Each generated prompt must correspond to a video clip of 5-8 seconds.
-    2. The total duration of all generated clips should closely approximate the user-specified total duration.
+    2. CRITICAL REQUIREMENT: You MUST generate the exact number of prompts specified by the user. If the user requests 15 prompts, you must return exactly 15 prompts. This is a strict, non-negotiable requirement.
     3. Every single prompt you generate MUST strictly follow this structure: [Scene Setting] + [Character Name (if any)] + [Character Description] + [Emotion/Expression] + [Action or Event] + [Art Style] + [Camera Angle and Movement]. For the [Art Style] part, you MUST use the style specified by the user.
     4. You may be provided with additional context, such as character/scene details or a specific video topic. You must incorporate this context into your generated prompts to ensure they are specific, relevant, and aligned with the chosen topic.
     5. Ensure the sequence of prompts creates a cohesive and logical narrative that professionally interprets the script.
     6. Be creative and cinematic in your direction, suggesting dynamic camera work and compelling scenes.
     7. Strictly adhere to Google's Veo 3 safety policies and guidelines.
     8. Your final output must be a JSON object containing a single key "prompts", which holds an array of the generated prompt strings. Do not include any other text, explanations, or markdown formatting in your response.
+    9. CRITICAL CLARITY RULE: DO NOT use abbreviations or technical film jargon (e.g., MCU, POV, ECU, O.S.). Instead, write everything out in full, clear, and descriptive language. For example, instead of 'MCU shot', write 'Medium close-up shot'. Instead of 'POV', write 'First-person point of view shot'. Clarity and user-friendliness are the top priorities.
   `;
 
   if (isConsistent && characters.length > 0) {
-    systemInstruction += `\n9. CRITICAL CONSISTENCY RULE: For all characters defined in the context, you must ensure they are visually identical in every single prompt where they appear. Re-use their exact descriptions. Do not change their appearance, clothing, or key features between scenes unless the script explicitly says to. This is the most important rule.`;
+    systemInstruction += `\n10. CRITICAL CONSISTENCY RULE: For all characters defined in the context, you must ensure they are visually identical in every single prompt where they appear. Re-use their exact descriptions. Do not change their appearance, clothing, or key features between scenes unless the script explicitly says to. This is the most important rule.`;
   }
 
   let context = '';
@@ -89,7 +90,8 @@ export const generatePrompts = async (
     ---
     ${script}
     ---
-    Total desired video duration: ${duration} seconds.
+    Total number of prompts to generate: ${numberOfPrompts}.
+    IMPORTANT: You MUST generate exactly ${numberOfPrompts} prompts. It is critical that you divide the provided script into this precise number of prompts. Do not generate more or fewer prompts than requested.
   `;
 
   try {

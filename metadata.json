@@ -1,5 +1,5 @@
 {
-  "name": "Veo 3 Prompt By Hướng",
+  "name": "Veo 3 Prompt By Hướng ",
   "description": "An application to generate professional video prompts for Google's Veo 3 AI based on a user-provided script and duration. The AI acts as a director to create a series of structured, sequential prompts.",
   "requestFramePermissions": []
 }
